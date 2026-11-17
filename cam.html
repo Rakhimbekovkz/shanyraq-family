@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Shanyraq Family: камера</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Onest:wght@500;600;700&display=swap">
+<style>
+/* Страница-камера для телефона: подключается к экрану по коду комнаты, распознаёт позы и закрепляет за каждым человеком номер и цвет. */
+:root{--bg:#0b0f2e;--bg2:#141a45;--ink:#f4f6ff;--ink2:#aab3e6;--brand:#3b5bff;--good:#2ee59d;--bad:#ff5a7a;--gold:#ffd84d;
+  --p1:#ff7a59;--p2:#53b4ff;--p3:#b98cff;--p4:#2ee59d;--f-display:"Unbounded","Onest",system-ui,sans-serif;--f-body:"Onest",-apple-system,"Segoe UI",Roboto,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body)}
+body{min-height:100vh;padding:max(14px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:12px}
+h1{font:800 20px var(--f-display);margin:0}
+h1 span{color:#53b4ff}
+.card{background:var(--bg2);border-radius:18px;padding:14px}
+label{font-size:13px;color:var(--ink2);display:block;margin-bottom:6px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input{flex:1;min-width:0;font:800 28px var(--f-display);letter-spacing:.2em;text-align:center;background:#0b0f2e;border:2px solid #2a347a;border-radius:14px;color:var(--ink);padding:10px}
+input:focus{outline:3px solid var(--gold);outline-offset:2px}
+button{font:inherit;cursor:pointer}
+.btn{border:0;background:linear-gradient(135deg,var(--brand),#7b5cff);color:#fff;font:700 16px var(--f-body);padding:14px 18px;border-radius:14px}
+.ghost{border:2px solid #3a4590;background:transparent;color:var(--ink);font-weight:700;padding:10px 14px;border-radius:12px;font-size:14px}
+.seg{display:inline-flex;background:#0b0f2e;border-radius:999px;padding:4px}
+.seg button{border:0;background:transparent;color:var(--ink2);padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px}
+.seg button.on{background:var(--brand);color:#fff}
+.status{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.status i{width:10px;height:10px;border-radius:50%;background:var(--bad);flex:none}
+.status.ok i{background:var(--good)}
+.cam{position:relative;width:100%;aspect-ratio:3/4;border-radius:18px;overflow:hidden;background:#000}
+@media (orientation:landscape){.cam{aspect-ratio:16/9;max-height:70vh}}
+.cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.pls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.pl{border-radius:12px;padding:8px;text-align:center;font-weight:700;font-size:13px;background:#0b0f2e;border:2px solid transparent;opacity:.35}
+.pl.on{opacity:1}
+.hint{font-size:13px;color:var(--ink2);margin:0}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<h1>Shanyraq <span>Family</span> · <span id="tTitle">камера</span></h1>
+
+<div class="card" id="joinCard">
+  <label for="code" id="tCode">Код комнаты с экрана</label>
+  <div class="row"><input id="code" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000"><button class="btn" id="joinBtn" type="button">Подключить</button></div>
+  <div class="row" style="margin-top:10px;justify-content:space-between">
+    <div class="seg" role="group" aria-label="Камера"><button type="button" data-cam="user" class="on">Фронтальная</button><button type="button" data-cam="environment">Задняя</button></div>
+    <div class="seg" role="group" aria-label="Язык"><button type="button" data-lang="ru" class="on">RU</button><button type="button" data-lang="kz">KZ</button></div>
+  </div>
+</div>
+
+<div class="status" id="status" role="status"><i></i><span id="statusTxt">Не подключено</span></div>
+
+<div class="cam hidden" id="camBox"><video id="video" playsinline muted></video><canvas id="overlay"></canvas></div>
+<div class="pls hidden" id="pls"></div>
+<div class="row hidden" id="tools"><button class="ghost" id="resetBtn" type="button">Сбросить игроков</button><button class="ghost" id="flipBtn" type="button">Сменить камеру</button></div>
+<p class="hint" id="hint">Поставьте телефон у телевизора камерой к игрокам. Игроки — в 2–3 метрах, хорошо освещены.</p>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+/* ================== ТЕКСТЫ ================== */
+const TX={ru:{title:"камера",code:"Код комнаты с экрана",join:"Подключить",reset:"Сбросить игроков",flip:"Сменить камеру",
+  hint:"Поставьте телефон у телевизора камерой к игрокам. Игроки — в 2–3 метрах, хорошо освещены.",
+  off:"Не подключено",connecting:"Подключаемся к экрану…",loading:"Загружаем распознавание движений…",on:"Подключено к экрану",lost:"Связь с экраном потеряна — подключитесь снова",
+  badCode:"Введите 4 цифры кода с экрана",noScreen:"Экран с таким кодом не найден. Проверьте код на телевизоре",errCam:"Камера недоступна: разрешите доступ к камере",errModel:"Не загрузилось распознавание движений. Проверьте интернет",player:"Игрок"},
+ kz:{title:"камера",code:"Экрандағы бөлме коды",join:"Қосылу",reset:"Ойыншыларды тазалау",flip:"Камераны ауыстыру",
+  hint:"Телефонды теледидардың жанына камерасын ойыншыларға қаратып қойыңыз. Ойыншылар 2–3 метр қашықтықта, жарық жерде тұрсын.",
+  off:"Қосылмаған",connecting:"Экранға қосылуда…",loading:"Қозғалысты тану жүктелуде…",on:"Экранға қосылды",lost:"Экранмен байланыс үзілді — қайта қосылыңыз",
+  badCode:"Экрандағы кодтың 4 санын енгізіңіз",noScreen:"Бұл кодпен экран табылмады. Теледидардағы кодты тексеріңіз",errCam:"Камера қолжетімсіз: камераға рұқсат беріңіз",errModel:"Қозғалысты тану жүктелмеді. Интернетті тексеріңіз",player:"Ойыншы"}};
+let L=new URLSearchParams(location.search).get("lang")==="kz"?"kz":"ru";const tx=k=>TX[L][k];
+function applyLang(){document.documentElement.lang=L==="kz"?"kk":"ru";
+  tTitle.textContent=tx("title");tCode.textContent=tx("code");joinBtn.textContent=tx("join");resetBtn.textContent=tx("reset");flipBtn.textContent=tx("flip");hint.textContent=tx("hint");
+  document.querySelectorAll("[data-lang]").forEach(b=>b.classList.toggle("on",b.dataset.lang===L));renderPlayers();}
+function setStatus(txt,ok){document.getElementById("statusTxt").textContent=txt;document.getElementById("status").classList.toggle("ok",!!ok);}
+
+/* ================== ОТСЛЕЖИВАНИЕ ИГРОКОВ ==================
+   Каждый человек получает номер один раз и сохраняет его:
+   1) кадр за кадром его ведём по положению (ближайший к прошлой позиции);
+   2) если человек пропал и вернулся — узнаём по цвету одежды (среднему цвету торса) и возвращаем прежний номер. */
+const COLORS=["#ff7a59","#53b4ff","#b98cff","#2ee59d"];
+const MAXP=4, LOST_KEEP_MS=30000, ACTIVE_MS=1500;
+let tracks=[]; // {id,x,y,w,col:[r,g,b],last,raiseHist:[],raise}
+function colorDist(a,b){if(!a||!b)return 999;const dr=a[0]-b[0],dg=a[1]-b[1],db=a[2]-b[2];return Math.sqrt(2*dr*dr+4*dg*dg+3*db*db)/3;}
+function freeId(now){
+  const used=new Set(tracks.filter(t=>now-t.last<LOST_KEEP_MS).map(t=>t.id));
+  for(let i=1;i<=MAXP;i++)if(!used.has(i))return i;
+  // все 4 номера заняты: отдаём номер того, кто дольше всех не появлялся
+  const old=tracks.slice().sort((a,b)=>a.last-b.last)[0];tracks=tracks.filter(t=>t!==old);return old.id;
+}
+/* dets: [{x,y,w,col,lm}] — центр плеч, ширина плеч, цвет торса. Возвращает dets с полем id. */
+function trackStep(dets,now){
+  const active=tracks.filter(t=>now-t.last<ACTIVE_MS);
+  const pairs=[];
+  dets.forEach((d,di)=>active.forEach(t=>{
+    const pos=Math.hypot(d.x-t.x,d.y-t.y)/Math.max(t.w,.06);
+    const cost=pos+colorDist(d.col,t.col)/90;
+    if(pos<2.2)pairs.push({di,t,cost});
+  }));
+  pairs.sort((a,b)=>a.cost-b.cost);
+  const usedD=new Set(),usedT=new Set();
+  for(const p of pairs){if(usedD.has(p.di)||usedT.has(p.t))continue;usedD.add(p.di);usedT.add(p.t);dets[p.di].id=p.t.id;update(p.t,dets[p.di],now,true);}
+  // не найденные по положению: пробуем узнать «потерявшихся» по одежде
+  dets.forEach((d,di)=>{
+    if(usedD.has(di))return;
+    const lost=tracks.filter(t=>!usedT.has(t)&&now-t.last<LOST_KEEP_MS);
+    let best=null,bc=1e9;
+    lost.forEach(t=>{const c=colorDist(d.col,t.col);if(c<bc){bc=c;best=t;}});
+    if(best&&bc<45){usedT.add(best);d.id=best.id;update(best,d,now,false);return;}
+    const t={id:freeId(now),x:d.x,y:d.y,w:d.w,col:d.col?d.col.slice():null,last:now,raiseHist:[],raise:null};
+    tracks.push(t);usedT.add(t);d.id=t.id;
+  });
+  tracks=tracks.filter(t=>now-t.last<LOST_KEEP_MS);
+  return dets;
+}
+function update(t,d,now,smoothColor){
+  t.x=d.x;t.y=d.y;t.w=t.w*.7+d.w*.3;t.last=now;
+  if(d.col){if(!t.col)t.col=d.col.slice();else if(smoothColor)t.col=t.col.map((v,i)=>v*.9+d.col[i]*.1);}
+}
+
+/* ================== ПОЗА → ПОДНЯТАЯ РУКА ================== */
+function raisedSide(lm){
+  const nose=lm[0],lw=lm[15],rw=lm[16],ls=lm[11],rs=lm[12];
+  const vis=p=>p&&(p.visibility===undefined||p.visibility>.4);
+  if(!vis(nose))return null;
+  const sw=Math.abs(ls.x-rs.x)||.1;
+  const up=w=>vis(w)&&w.y<nose.y-sw*.15;
+  const l=up(lw),r=up(rw);
+  if(l&&!r)return "L";if(r&&!l)return "R";return null;
+}
+/* сглаживание: рука считается поднятой, если поднята в 3 из последних 4 кадров */
+function smoothRaise(t,raw){t.raiseHist.push(raw);if(t.raiseHist.length>4)t.raiseHist.shift();
+  for(const s of["L","R"])if(t.raiseHist.filter(x=>x===s).length>=3)return s;return null;}
+
+/* ================== КАМЕРА И РАСПОЗНАВАНИЕ ================== */
+const MP="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const MODEL="https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+const BONES=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+const KEYS=[0,11,12,13,14,15,16,23,24,25,26,27,28];
+let landmarker=null,stream=null,facing="user",lastT=-1,video=document.getElementById("video"),canvas=document.getElementById("overlay"),ctx=canvas.getContext("2d");
+const sampler=document.createElement("canvas");sampler.width=96;sampler.height=72;const sctx=sampler.getContext("2d",{willReadFrequently:true});
+async function initPose(){
+  const vision=await import(MP+"/vision_bundle.mjs");
+  const fs=await vision.FilesetResolver.forVisionTasks(MP+"/wasm");
+  const o=d=>({baseOptions:{modelAssetPath:MODEL,delegate:d},runningMode:"VIDEO",numPoses:MAXP,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});
+  try{landmarker=await vision.PoseLandmarker.createFromOptions(fs,o("GPU"));}catch(e){landmarker=await vision.PoseLandmarker.createFromOptions(fs,o("CPU"));}
+}
+async function startCamera(){
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:false});
+  video.srcObject=stream;await video.play();
+}
+/* средний цвет торса: прямоугольник между плечами и бёдрами, середина без краёв */
+function torsoColor(lm,img){
+  const ls=lm[11],rs=lm[12],lh=lm[23],rh=lm[24];
+  const x0=Math.min(ls.x,rs.x),x1=Math.max(ls.x,rs.x),yT=Math.min(ls.y,rs.y);
+  const hipOk=lh&&rh&&(lh.visibility===undefined||lh.visibility>.3);
+  const yB=hipOk?Math.max(lh.y,rh.y):yT+(x1-x0)*1.2;
+  const W=sampler.width,H=sampler.height;
+  const ax=Math.max(0,Math.floor((x0+(x1-x0)*.25)*W)),bx=Math.min(W-1,Math.ceil((x1-(x1-x0)*.25)*W));
+  const ay=Math.max(0,Math.floor((yT+(yB-yT)*.2)*H)),by=Math.min(H-1,Math.ceil((yT+(yB-yT)*.8)*H));
+  if(bx<=ax||by<=ay)return null;
+  let r=0,g=0,b=0,n=0;
+  for(let y=ay;y<=by;y++)for(let x=ax;x<=bx;x++){const i=(y*W+x)*4;r+=img[i];g+=img[i+1];b+=img[i+2];n++;}
+  return n?[r/n,g/n,b/n]:null;
+}
+let lastSend=0;
+function loop(){
+  if(!landmarker)return;
+  if(video.readyState>=2&&video.currentTime!==lastT){
+    lastT=video.currentTime;const now=performance.now();
+    const res=landmarker.detectForVideo(video,now);
+    sctx.drawImage(video,0,0,sampler.width,sampler.height);
+    const img=sctx.getImageData(0,0,sampler.width,sampler.height).data;
+    const dets=(res.landmarks||[]).map(lm=>({lm,x:(lm[11].x+lm[12].x)/2,y:(lm[11].y+lm[12].y)/2,w:Math.abs(lm[11].x-lm[12].x)+.02,col:torsoColor(lm,img)}));
+    trackStep(dets,now);
+    dets.forEach(d=>{const t=tracks.find(x=>x.id===d.id);d.raise=t?smoothRaise(t,raisedSide(d.lm)):null;if(t)t.raise=d.raise;});
+    draw(dets);renderPlayers(dets);
+    if(conn&&conn.open&&now-lastSend>66){lastSend=now;
+      conn.send({t:"p",ps:dets.map(d=>({id:d.id,r:d.raise,k:KEYS.map(i=>[+(1-d.lm[i].x).toFixed(3),+d.lm[i].y.toFixed(3)])}))});}
+  }
+  requestAnimationFrame(loop);
+}
+function draw(dets){
+  const w=canvas.width=canvas.clientWidth*devicePixelRatio,h=canvas.height=canvas.clientHeight*devicePixelRatio;
+  ctx.clearRect(0,0,w,h);
+  dets.forEach(d=>{const col=COLORS[d.id-1];ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=5*devicePixelRatio;ctx.lineCap="round";
+    BONES.forEach(([a,b])=>{const A=d.lm[a],B=d.lm[b];ctx.beginPath();ctx.moveTo(A.x*w,A.y*h);ctx.lineTo(B.x*w,B.y*h);ctx.stroke();});
+    const n=d.lm[0];ctx.beginPath();ctx.arc(n.x*w,n.y*h,22*devicePixelRatio,0,7);ctx.fill();
+    // номер рисуем зеркально, чтобы на зеркальном видео читался нормально
+    ctx.save();ctx.translate(n.x*w,n.y*h);ctx.scale(-1,1);ctx.fillStyle="#0b0f2e";ctx.font=`800 ${24*devicePixelRatio}px Unbounded, sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(d.id),0,1);ctx.restore();
+  });
+}
+let lastIds="";
+function renderPlayers(dets){
+  const on=new Set((dets||[]).map(d=>d.id));const sig=[...on].sort().join(",")+L;
+  if(dets&&sig===lastIds)return;lastIds=sig;
+  pls.innerHTML=[1,2,3,4].map(i=>`<div class="pl ${on.has(i)?"on":""}" style="border-color:${COLORS[i-1]};color:${COLORS[i-1]}">${tx("player")} ${i}</div>`).join("");
+}
+
+/* ================== СВЯЗЬ С ЭКРАНОМ ================== */
+let peer=null,conn=null;
+async function join(){
+  const code=(document.getElementById("code").value||"").replace(/\D/g,"");
+  if(code.length!==4){setStatus(tx("badCode"));return;}
+  joinBtn.disabled=true;setStatus(tx("connecting"));
+  try{await startCamera();}catch(e){setStatus(tx("errCam"));joinBtn.disabled=false;return;}
+  camBox.classList.remove("hidden");pls.classList.remove("hidden");tools.classList.remove("hidden");renderPlayers([]);
+  if(!landmarker){setStatus(tx("loading"));try{await initPose();}catch(e){setStatus(tx("errModel"));joinBtn.disabled=false;return;}loop();}
+  connect(code);
+}
+function connect(code){
+  if(peer)try{peer.destroy();}catch(e){}
+  setStatus(tx("connecting"));
+  peer=new Peer();
+  peer.on("open",()=>{
+    conn=peer.connect("shq-fam-"+code,{serialization:"json"});
+    const to=setTimeout(()=>{if(!conn.open){setStatus(tx("noScreen"));joinBtn.disabled=false;}},12000);
+    conn.on("open",()=>{clearTimeout(to);setStatus(tx("on"),true);joinCard.classList.add("hidden");conn.send({t:"hello",lang:L});});
+    conn.on("close",()=>{setStatus(tx("lost"));joinCard.classList.remove("hidden");joinBtn.disabled=false;});
+    conn.on("data",m=>{if(m&&m.t==="lang"&&TX[m.lang]){L=m.lang;applyLang();}});
+  });
+  peer.on("error",e=>{if(e.type==="peer-unavailable")setStatus(tx("noScreen"));else setStatus(tx("lost"));joinBtn.disabled=false;});
+}
+
+/* ================== КНОПКИ ================== */
+const q=new URLSearchParams(location.search);if(q.get("room"))document.getElementById("code").value=q.get("room").replace(/\D/g,"").slice(0,4);
+joinBtn.onclick=join;
+document.getElementById("code").addEventListener("keydown",e=>{if(e.key==="Enter")join();});
+resetBtn.onclick=()=>{tracks=[];lastIds="x";};
+flipBtn.onclick=async()=>{facing=facing==="user"?"environment":"user";document.querySelectorAll("[data-cam]").forEach(b=>b.classList.toggle("on",b.dataset.cam===facing));try{await startCamera();tracks=[];}catch(e){setStatus(tx("errCam"));}};
+document.querySelectorAll("[data-cam]").forEach(b=>b.onclick=()=>{facing=b.dataset.cam;document.querySelectorAll("[data-cam]").forEach(x=>x.classList.toggle("on",x===b));});
+document.querySelectorAll("[data-lang]").forEach(b=>b.onclick=()=>{L=b.dataset.lang;applyLang();});
+applyLang();setStatus(tx("off"));
+</script>
+</body>
+</html>

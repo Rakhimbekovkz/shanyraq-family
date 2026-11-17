@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Shanyraq Family</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Onest:wght@500;600;700&display=swap">
+<style>
+/* Выбор устройства: экран (компьютер/ТВ) или камера (телефон) */
+:root{--bg:#0b0f2e;--bg2:#141a45;--ink:#f4f6ff;--ink2:#aab3e6;--gold:#ffd84d;--sky:#53b4ff;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(1000px 600px at 50% -10%,#2a3a9a,var(--bg) 60%);color:var(--ink);font-family:"Onest",-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:max(24px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));text-align:center}
+h1{font:800 clamp(28px,6vw,56px)/1.05 "Unbounded",sans-serif;margin:0}
+h1 span{color:var(--sky)}
+p{color:var(--ink2);margin:0;max-width:52ch}
+.pick{display:grid;grid-template-columns:repeat(2,minmax(0,280px));gap:16px}
+@media (max-width:620px){.pick{grid-template-columns:minmax(0,1fr);width:100%}}
+a.opt{display:flex;flex-direction:column;gap:8px;align-items:center;background:var(--bg2);border:2px solid #2a347a;border-radius:24px;padding:28px 20px;color:var(--ink);text-decoration:none}
+a.opt:hover,a.opt:focus-visible{border-color:var(--gold);outline:none}
+a.opt svg{width:56px;height:56px;color:var(--gold)}
+a.opt b{font:800 20px "Unbounded",sans-serif}
+a.opt span{color:var(--ink2);font-size:14px}
+.solo{color:var(--ink2);font-size:14px}
+.solo a{color:var(--sky)}
+</style>
+</head>
+<body>
+<h1>Shanyraq <span>Family</span></h1>
+<p>Семейная игра: вопросы на большом экране, ответы — движениями. Откройте «Экран» на компьютере или телевизоре, а «Камеру» — на телефоне.</p>
+<div class="pick">
+  <a class="opt" href="tv.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg><b>Экран</b><span>компьютер или телевизор: вопросы и счёт</span></a>
+  <a class="opt" href="cam.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><circle cx="12" cy="7" r="1.6"/><path d="M10 18h4"/></svg><b>Камера</b><span>телефон: распознаёт движения игроков</span></a>
+</div>
+<div class="solo">Одно устройство с камерой (ноутбук): <a href="solo.html">играть без телефона</a></div>
+</body>
+</html>

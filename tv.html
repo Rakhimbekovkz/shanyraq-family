@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Shanyraq Family: экран</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Onest:wght@500;600;700&display=swap">
+<style>
+/* Экран игры для компьютера / телевизора: вопросы, карточки ответов, игроки. Движения приходят с телефона-камеры по коду комнаты. */
+:root{
+  --bg:#0b0f2e; --bg2:#141a45; --ink:#f4f6ff; --ink2:#aab3e6; --brand:#3b5bff; --sky:#53b4ff;
+  --good:#2ee59d; --bad:#ff5a7a; --gold:#ffd84d;
+  --p1:#ff7a59; --p2:#53b4ff; --p3:#b98cff; --p4:#2ee59d;
+  --f-display:"Unbounded","Onest",system-ui,sans-serif; --f-body:"Onest",-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--f-body);overflow:hidden}
+body{background:radial-gradient(1200px 700px at 50% -10%,#2a3a9a 0%,var(--bg) 60%)}
+button{font:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+button:disabled{opacity:.4;cursor:not-allowed}
+.screen{position:fixed;inset:0;display:none;padding:max(2vh,env(safe-area-inset-top)) max(3vw,env(safe-area-inset-right)) max(2vh,env(safe-area-inset-bottom)) max(3vw,env(safe-area-inset-left))}
+.screen.on{display:flex}
+/* старт */
+#start{gap:3vw;align-items:center;justify-content:center}
+.left{flex:1.2;display:flex;flex-direction:column;gap:2.6vh;min-width:0}
+.logo{font:800 clamp(28px,4.4vw,64px)/1.05 var(--f-display);letter-spacing:-.02em}
+.logo span{color:var(--sky)}
+.tag{font-size:clamp(15px,1.5vw,22px);color:var(--ink2);max-width:46ch;margin:0}
+.how{display:grid;gap:1.4vh}
+.how div{background:var(--bg2);border-radius:18px;padding:1.6vh 1.4vw}
+.how b{display:block;font:600 clamp(14px,1.3vw,19px) var(--f-display);margin-bottom:4px;color:var(--gold)}
+.how p{margin:0;font-size:clamp(13px,1.15vw,17px);color:var(--ink2)}
+.room{flex:1;background:var(--bg2);border-radius:28px;padding:3vh 2vw;display:flex;flex-direction:column;align-items:center;gap:1.8vh;text-align:center;min-width:0}
+.room .lbl{color:var(--ink2);font-weight:600;font-size:clamp(14px,1.3vw,19px)}
+.code{font:800 clamp(48px,7vw,110px)/1 var(--f-display);letter-spacing:.12em;color:var(--gold)}
+#qr{background:#fff;padding:12px;border-radius:16px;line-height:0}
+#qr img,#qr canvas{width:clamp(130px,13vw,220px)!important;height:clamp(130px,13vw,220px)!important}
+.link{font-size:clamp(12px,1vw,15px);color:var(--ink2);word-break:break-all;max-width:36ch}
+.conn{display:flex;align-items:center;gap:10px;font-weight:700;font-size:clamp(14px,1.3vw,19px)}
+.conn i{width:12px;height:12px;border-radius:50%;background:var(--bad)}
+.conn.ok i{background:var(--good)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;min-height:36px}
+.row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.seg{display:inline-flex;background:var(--bg);border-radius:999px;padding:5px}
+.seg button{border:0;background:transparent;color:var(--ink2);padding:9px 18px;border-radius:999px;font-weight:700;font-size:clamp(13px,1.2vw,17px)}
+.seg button.on{background:var(--brand);color:#fff}
+.big{border:0;background:linear-gradient(135deg,var(--brand),#7b5cff);color:#fff;font:800 clamp(17px,1.8vw,26px) var(--f-display);padding:1.8vh 3.4vw;border-radius:999px;box-shadow:0 10px 40px rgba(59,91,255,.45)}
+.ghost{border:2px solid #3a4590;background:transparent;color:var(--ink);font-weight:700;padding:1.2vh 2vw;border-radius:999px;font-size:clamp(13px,1.2vw,17px)}
+/* игра */
+#game{flex-direction:column;gap:2vh}
+.top{display:flex;align-items:center;justify-content:space-between;gap:2vw}
+.round{font:600 clamp(14px,1.4vw,20px) var(--f-display);color:var(--ink2)}
+.timer{position:relative;width:clamp(56px,6vw,90px);height:clamp(56px,6vw,90px)}
+.timer svg{width:100%;height:100%;transform:rotate(-90deg)}
+.timer circle{fill:none;stroke-width:9}
+.timer .tb{stroke:#26306e} .timer .tf{stroke:var(--gold);stroke-linecap:round;transition:stroke-dashoffset .2s linear}
+.timer span{position:absolute;inset:0;display:grid;place-items:center;font:800 clamp(18px,2vw,30px) var(--f-display)}
+.q{font:800 clamp(24px,3.6vw,56px)/1.15 var(--f-display);text-align:center;margin:0;text-wrap:balance}
+.qsub{text-align:center;color:var(--ink2);font-size:clamp(14px,1.6vw,26px);margin:-1vh 0 0}
+.cards{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:3vw;min-height:0}
+.card{position:relative;border-radius:32px;background:var(--bg2);border:4px solid #2a347a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1vh;padding:2vh 2vw;transition:transform .2s,border-color .2s,background .3s}
+.card .side{position:absolute;top:2vh;font:600 clamp(13px,1.2vw,18px) var(--f-body);color:var(--ink2);display:flex;align-items:center;gap:8px}
+.card .side svg{width:clamp(20px,2vw,30px);height:clamp(20px,2vw,30px)}
+.card .val{font:800 clamp(34px,6.5vw,110px)/1.05 var(--f-display);text-align:center;word-break:break-word}
+.card .val.sm{font-size:clamp(26px,4vw,64px)}
+.card .who{position:absolute;bottom:2vh;display:flex;gap:10px;min-height:36px}
+.card.ok{border-color:var(--good);background:#0f3b33;transform:scale(1.02)}
+.card.no{opacity:.45}
+.dot{width:clamp(28px,2.6vw,40px);height:clamp(28px,2.6vw,40px);border-radius:50%;display:grid;place-items:center;font-weight:800;color:#0b0f2e;font-size:clamp(13px,1.2vw,18px)}
+.bottom{display:flex;gap:2vw;align-items:stretch;height:clamp(110px,22vh,230px)}
+.sk{position:relative;aspect-ratio:16/10;height:100%;border-radius:18px;overflow:hidden;background:#070a22;border:2px solid #222b68;flex:none}
+.sk canvas{position:absolute;inset:0;width:100%;height:100%}
+.sk .lbl{position:absolute;left:10px;top:8px;font-size:12px;font-weight:700;color:var(--ink2)}
+.players{flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1.4vw;min-width:0}
+.pl{background:var(--bg2);border-radius:18px;padding:1.4vh 1.2vw;display:flex;flex-direction:column;justify-content:space-between;border:3px solid transparent;min-width:0}
+.pl.off{opacity:.3}
+.pl .nm{display:flex;align-items:center;gap:10px;font:600 clamp(13px,1.3vw,19px) var(--f-display)}
+.pl .sc{font:800 clamp(24px,3vw,46px) var(--f-display);font-variant-numeric:tabular-nums}
+.pl .st{font-size:clamp(12px,1.1vw,16px);color:var(--ink2);min-height:1.3em}
+.pl .ring{height:6px;background:#26306e;border-radius:3px;overflow:hidden}
+.pl .ring i{display:block;height:100%;width:0;background:var(--gold)}
+.keys{font-size:12px;color:var(--ink2);text-align:center;min-height:1em}
+#results{flex-direction:column;align-items:center;justify-content:center;gap:3vh;text-align:center}
+.podium{display:flex;gap:2vw;align-items:flex-end;justify-content:center}
+.pod{width:clamp(110px,14vw,220px);border-radius:24px 24px 8px 8px;background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:2vh 1vw;gap:1vh}
+.pod b{font:800 clamp(22px,3vw,44px) var(--f-display)}
+.pod span{color:var(--ink2);font-weight:600}
+.fs{position:fixed;right:max(16px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));z-index:5}
+body:has(#game.on) .fs{display:none}
+.toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%) scale(.8);font:800 clamp(30px,5vw,80px) var(--f-display);opacity:0;pointer-events:none;transition:all .35s;text-shadow:0 6px 30px rgba(0,0,0,.6);text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+@media (max-width:900px){#start{flex-direction:column;overflow:auto;justify-content:flex-start}.room{width:100%}html,body{overflow:auto}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<button class="ghost fs" id="fsBtn" type="button" title="На весь экран (F)">⛶</button>
+
+<!-- ===== СТАРТ: код комнаты ===== -->
+<section class="screen on" id="start">
+  <div class="left">
+    <div class="logo">Shanyraq <span>Family</span></div>
+    <p class="tag" data-t="tag"></p>
+    <div class="how">
+      <div><b data-t="s1"></b><p data-t="s1t"></p></div>
+      <div><b data-t="h1"></b><p data-t="h1t"></p></div>
+      <div><b data-t="h2"></b><p data-t="h2t"></p></div>
+    </div>
+    <div class="row" style="justify-content:flex-start">
+      <div class="seg" role="group" aria-label="Язык"><button type="button" data-lang="ru" class="on">Русский</button><button type="button" data-lang="kz">Қазақша</button></div>
+    </div>
+  </div>
+  <div class="room">
+    <div class="lbl" data-t="roomLbl"></div>
+    <div class="code" id="codeLbl">····</div>
+    <div id="qr" aria-label="QR-код для телефона"></div>
+    <div class="link" id="camLink"></div>
+    <div class="conn" id="conn"><i></i><span id="connTxt"></span></div>
+    <div class="chips" id="lobbyChips"></div>
+    <div class="row"><button class="big" type="button" id="startBtn" data-t="startCam" disabled></button><button class="ghost" type="button" id="startDemo" data-t="startDemo"></button></div>
+  </div>
+</section>
+
+<!-- ===== ИГРА ===== -->
+<section class="screen" id="game">
+  <div class="top">
+    <div class="round" id="roundLbl"></div>
+    <div class="timer" aria-hidden="true"><svg viewBox="0 0 100 100"><circle class="tb" cx="50" cy="50" r="42"/><circle class="tf" id="tf" cx="50" cy="50" r="42" stroke-dasharray="263.9" stroke-dashoffset="0"/></svg><span id="tLbl">10</span></div>
+  </div>
+  <h1 class="q" id="qText"></h1>
+  <p class="qsub" id="qSub"></p>
+  <div class="cards">
+    <div class="card" id="cardL"><div class="side"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V5M6 11l6-6 6 6"/></svg><span data-t="leftHand"></span></div><div class="val" id="valL"></div><div class="who" id="whoL"></div></div>
+    <div class="card" id="cardR"><div class="side"><span data-t="rightHand"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V5M6 11l6-6 6 6"/></svg></div><div class="val" id="valR"></div><div class="who" id="whoR"></div></div>
+  </div>
+  <div class="bottom">
+    <div class="sk" id="skBox"><canvas id="sk"></canvas><span class="lbl" data-t="camOn"></span></div>
+    <div class="players" id="players"></div>
+  </div>
+  <div class="keys" id="keysHint"></div>
+</section>
+
+<!-- ===== ИТОГ ===== -->
+<section class="screen" id="results">
+  <div class="logo" data-t="winner"></div>
+  <div class="podium" id="podium"></div>
+  <div class="row"><button class="big" type="button" id="again" data-t="again"></button><button class="ghost" type="button" id="toMenu" data-t="menu"></button></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const T={
+ ru:{tag:"Вопросы по логике, математике и казахскому. Отвечайте всей семьёй — поднимите руку со стороны правильного ответа.",
+  h1:"1. Встаньте перед камерой",h1t:"Отойдите на 2–3 метра, чтобы камера видела вас по пояс или целиком. Играют до 4 человек.",
+  h2:"2. Поднимите руку",h2t:"Ответ слева — поднимите левую руку. Справа — правую. Подержите секунду, пока не заполнится полоска.",
+  h3:"3. Кто быстрее",h3t:"За верный ответ 100 очков и бонус за скорость. 10 раундов — и узнаем победителя.",
+  camFront:"Фронтальная камера",camBack:"Задняя камера",startCam:"Начать игру",startDemo:"Без камеры (демо)",
+  leftHand:"левая рука",rightHand:"правая рука",round:"Раунд",of:"из",player:"Игрок",waiting:"нет в кадре",thinking:"думает…",answered:"ответил ✓",
+  winner:"Победитель!",again:"Ещё раз",menu:"В меню",pts:"очков",correct:"Верно!",time:"Время!",
+  camOn:"камера",demoOn:"демо: клавиши",keys:"Демо: игрок 1 — Q / W · игрок 2 — O / P · игрок 3 — Z / X (левая / правая рука)",
+  errCam:"Камера недоступна. Разрешите доступ к камере или откройте игру по https. Можно сыграть в демо без камеры.",
+  errModel:"Не удалось загрузить распознавание движений. Проверьте интернет или сыграйте в демо.",loading:"Загружаем распознавание движений…",
+  qMore:"Где больше?",qNext:"Какое число дальше?",qCount:"Сколько здесь?",qTrue:"Верно или нет?",qWord:"Как это по-казахски?",
+  yes:"Верно",no:"Неверно",
+  facts:[["Все квадраты — прямоугольники",1],["В неделе 8 дней",0],["В одном часе 60 минут",1],["У треугольника 4 угла",0],["Кит — это рыба",0],["В году 12 месяцев",1],["0 больше, чем 1",0],["Половина от 10 — это 5",1],["Солнце — звезда",1],["У паука 6 лап",0]]},
+ kz:{tag:"Логика, математика және қазақ тілі бойынша сұрақтар. Бүкіл отбасымен жауап беріңіз — дұрыс жауап жағындағы қолыңызды көтеріңіз.",
+  h1:"1. Камераның алдына тұрыңыз",h1t:"Камера сізді белге дейін немесе толық көретіндей 2–3 метр алыстаңыз. 4 адамға дейін ойнайды.",
+  h2:"2. Қолыңызды көтеріңіз",h2t:"Жауап сол жақта болса — сол қолды, оң жақта болса — оң қолды көтеріңіз. Жолақ толғанша бір секунд ұстаңыз.",
+  h3:"3. Кім жылдам",h3t:"Дұрыс жауапқа 100 ұпай және жылдамдыққа бонус. 10 раунд — жеңімпазды анықтаймыз.",
+  camFront:"Алдыңғы камера",camBack:"Артқы камера",startCam:"Ойынды бастау",startDemo:"Камерасыз (демо)",
+  leftHand:"сол қол",rightHand:"оң қол",round:"Раунд",of:"/",player:"Ойыншы",waiting:"кадрда жоқ",thinking:"ойлануда…",answered:"жауап берді ✓",
+  winner:"Жеңімпаз!",again:"Қайтадан",menu:"Мәзірге",pts:"ұпай",correct:"Дұрыс!",time:"Уақыт бітті!",
+  camOn:"камера",demoOn:"демо: пернелер",keys:"Демо: 1-ойыншы — Q / W · 2-ойыншы — O / P · 3-ойыншы — Z / X (сол / оң қол)",
+  errCam:"Камера қолжетімсіз. Камераға рұқсат беріңіз немесе ойынды https арқылы ашыңыз. Камерасыз демо ойнауға болады.",
+  errModel:"Қозғалысты тану жүктелмеді. Интернетті тексеріңіз немесе демо ойнаңыз.",loading:"Қозғалысты тану жүктелуде…",
+  qMore:"Қайсысы үлкен?",qNext:"Келесі сан қандай?",qCount:"Мұнда нешеу?",qTrue:"Дұрыс па, бұрыс па?",qWord:"Бұл қазақша қалай?",
+  yes:"Дұрыс",no:"Бұрыс",
+  facts:[["Барлық шаршылар — тіктөртбұрыштар",1],["Аптада 8 күн бар",0],["Бір сағатта 60 минут бар",1],["Үшбұрыштың 4 бұрышы бар",0],["Кит — балық",0],["Жылда 12 ай бар",1],["0 саны 1-ден үлкен",0],["10-ның жартысы — 5",1],["Күн — жұлдыз",1],["Өрмекшінің 6 аяғы бар",0]]}
+};
+const WORDS=[["🍎","алма"],["🍐","алмұрт"],["🐱","мысық"],["🐶","ит"],["🐴","жылқы"],["🐦","құс"],["☀️","күн"],["🌙","ай"],["📖","кітап"],["🏠","үй"],["💧","су"],["🌳","ағаш"]];
+const COUNT_ITEMS=["🍎","⭐","🎈","🐟","🚗"];
+
+/* дополнительные тексты экрана */
+Object.assign(T.ru,{h1:"2. Встаньте перед камерой",h2:"3. Поднимите руку",s1:"1. Подключите телефон",s1t:"Отсканируйте QR-код или откройте ссылку на телефоне и введите код. Поставьте телефон у телевизора камерой к игрокам.",
+  roomLbl:"Код комнаты",startCam:"Начать игру",waitPhone:"Ждём телефон-камеру…",phoneOk:"Телефон подключён",phoneLost:"Телефон отключился",noNet:"Нет связи с сервером комнат — проверьте интернет",camOn:"движения с телефона",
+  keys:"Демо: игрок 1 — Q / W · игрок 2 — O / P · игрок 3 — Z / X (левая / правая рука)"});
+Object.assign(T.kz,{h1:"2. Камераның алдына тұрыңыз",h2:"3. Қолыңызды көтеріңіз",s1:"1. Телефонды қосыңыз",s1t:"QR-кодты сканерлеңіз немесе сілтемені телефонда ашып, кодты енгізіңіз. Телефонды теледидардың жанына камерасын ойыншыларға қаратып қойыңыз.",
+  roomLbl:"Бөлме коды",startCam:"Ойынды бастау",waitPhone:"Телефон-камераны күтудеміз…",phoneOk:"Телефон қосылды",phoneLost:"Телефон ажырады",noNet:"Бөлмелер серверімен байланыс жоқ — интернетті тексеріңіз",camOn:"телефоннан қозғалыс",
+  keys:"Демо: 1-ойыншы — Q / W · 2-ойыншы — O / P · 3-ойыншы — Z / X (сол / оң қол)"});
+let L="ru"; const t=k=>T[L][k];
+function applyLang(){document.documentElement.lang=L==="kz"?"kk":"ru";document.querySelectorAll("[data-t]").forEach(e=>{e.textContent=t(e.dataset.t);});
+  document.querySelectorAll("[data-lang]").forEach(b=>b.classList.toggle("on",b.dataset.lang===L));
+  updateConn();renderQr();if(conn&&conn.open)conn.send({t:"lang",lang:L});}
+
+/* ================== ВОПРОСЫ ================== */
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function makeQuestion(i){
+  const kinds=["more","next","count","fact","word"];
+  const kind=kinds[i%kinds.length];
+  let q,sub="",right,wrong,small=false;
+  if(kind==="more"){ // сравнить два выражения
+    let a,b; do{const x=rnd(3,12),y=rnd(2,9),z=rnd(8,20),w=rnd(1,7);a=[`${x} + ${y}`,x+y];b=[`${z} − ${w}`,z-w];}while(a[1]===b[1]);
+    q=t("qMore");right=a[1]>b[1]?a[0]:b[0];wrong=a[1]>b[1]?b[0]:a[0];small=true;
+  }else if(kind==="next"){ // продолжить ряд
+    const s=rnd(1,9),d=pick([2,3,5,10]);const seq=[0,1,2,3].map(k=>s+k*d);
+    q=t("qNext");sub=seq.join(", ")+", ?";right=String(s+4*d);wrong=String(s+4*d+pick([-1,1,d]));
+  }else if(kind==="count"){ // посчитать предметы
+    const n=rnd(3,9),it=pick(COUNT_ITEMS);q=t("qCount");sub=it.repeat(n);right=String(n);wrong=String(n+pick([-2,-1,1,2]));
+  }else if(kind==="fact"){ // верно / неверно
+    const f=pick(T[L].facts);q=t("qTrue");sub="«"+f[0]+"»";right=f[1]?t("yes"):t("no");wrong=f[1]?t("no"):t("yes");small=true;
+  }else{ // слово на казахском
+    const w=pick(WORDS);let o;do{o=pick(WORDS);}while(o===w);q=t("qWord");sub=w[0];right=w[1];wrong=o[1];small=true;
+  }
+  const side=Math.random()<.5?"L":"R";
+  return {q,sub,side,L:side==="L"?right:wrong,R:side==="R"?right:wrong,small};
+}
+
+
+/* ================== ИГРОКИ: номер и цвет закреплены за человеком на телефоне ================== */
+const COLORS=["var(--p1)","var(--p2)","var(--p3)","var(--p4)"];
+const HEX=["#ff7a59","#53b4ff","#b98cff","#2ee59d"];
+const MAXP=4, HOLD_MS=900, ROUND_MS=10000, ROUNDS=10, STALE_MS=1500;
+let players=[];
+function resetPlayers(){players=[0,1,2,3].map(i=>({id:i,score:0,present:false,raise:null,pts:null,lastSeen:0,holdSide:null,holdStart:0,answered:false,answerSide:null,answerAt:0}));}
+function renderPlayers(){
+  document.getElementById("players").innerHTML=players.map(p=>`<div class="pl ${p.present?"":"off"}" style="border-color:${p.present?COLORS[p.id]:"transparent"}">
+    <div class="nm"><span class="dot" style="background:${COLORS[p.id]}">${p.id+1}</span>${t("player")} ${p.id+1}</div>
+    <div class="sc">${p.score}</div>
+    <div class="st">${!p.present?t("waiting"):p.answered?t("answered"):t("thinking")}</div>
+    <div class="ring"><i id="ring${p.id}"></i></div></div>`).join("");
+}
+function renderLobby(){
+  document.getElementById("lobbyChips").innerHTML=players.filter(p=>p.present).map(p=>`<span class="dot" style="background:${COLORS[p.id]};width:40px;height:40px">${p.id+1}</span>`).join("");
+}
+
+/* ================== КОМНАТА: связь с телефоном ================== */
+let mode="phone", peer=null, conn=null, code="", lastData=0;
+function camUrl(){return new URL("cam.html",location.href).href.split("?")[0]+"?room="+code+"&lang="+L;}
+function renderQr(){
+  const box=document.getElementById("qr");if(!code||!window.QRCode){box.textContent="";return;}
+  box.innerHTML="";new QRCode(box,{text:camUrl(),width:220,height:220,correctLevel:QRCode.CorrectLevel.M});
+  document.getElementById("camLink").textContent=camUrl();
+}
+function updateConn(){
+  const ok=conn&&conn.open;const el=document.getElementById("conn");if(!el)return;
+  el.classList.toggle("ok",!!ok);
+  document.getElementById("connTxt").textContent=peer&&peer.disconnected&&!ok?t("noNet"):ok?t("phoneOk"):(conn?t("phoneLost"):t("waitPhone"));
+  document.getElementById("startBtn").disabled=!ok;
+}
+function openRoom(){
+  if(!window.Peer){document.getElementById("connTxt").textContent=t("noNet");return;}
+  code=String(rnd(1000,9999));document.getElementById("codeLbl").textContent=code;renderQr();
+  peer=new Peer("shq-fam-"+code);
+  peer.on("error",e=>{if(e.type==="unavailable-id"){peer.destroy();openRoom();}else updateConn();});
+  peer.on("disconnected",()=>{updateConn();try{peer.reconnect();}catch(e){}});
+  peer.on("connection",c=>{
+    if(conn&&conn!==c)try{conn.close();}catch(e){}
+    conn=c;
+    c.on("open",()=>{updateConn();c.send({t:"lang",lang:L});});
+    c.on("data",onData);
+    c.on("close",()=>{if(conn===c)updateConn();});
+  });
+  updateConn();
+}
+function onData(m){
+  if(!m||m.t!=="p"||mode!=="phone")return;
+  const now=performance.now();lastData=now;
+  const seen=new Set();
+  (m.ps||[]).forEach(d=>{const p=players[d.id-1];if(!p)return;seen.add(p.id);p.present=true;p.lastSeen=now;p.raise=d.r||null;p.pts=d.k;});
+  players.forEach(p=>{if(!seen.has(p.id)){p.raise=null;if(now-p.lastSeen>STALE_MS)p.present=false;}});
+  drawSkeletons();
+  if(document.getElementById("start").classList.contains("on"))renderLobby();
+}
+/* ключевые точки приходят в порядке: нос, плечи, локти, запястья, бёдра, колени, щиколотки */
+const SK=[[1,2],[1,3],[3,5],[2,4],[4,6],[1,7],[2,8],[7,8],[7,9],[9,11],[8,10],[10,12]];
+function drawSkeletons(){
+  const c=document.getElementById("sk");if(!c||!c.clientWidth)return;
+  const w=c.width=c.clientWidth*devicePixelRatio,h=c.height=c.clientHeight*devicePixelRatio,x=c.getContext("2d");
+  x.clearRect(0,0,w,h);
+  players.forEach(p=>{if(!p.present||!p.pts)return;
+    x.strokeStyle=HEX[p.id];x.fillStyle=HEX[p.id];x.lineWidth=4*devicePixelRatio;x.lineCap="round";
+    SK.forEach(([a,b])=>{const A=p.pts[a],B=p.pts[b];if(!A||!B)return;x.beginPath();x.moveTo(A[0]*w,A[1]*h);x.lineTo(B[0]*w,B[1]*h);x.stroke();});
+    const n=p.pts[0];x.beginPath();x.arc(n[0]*w,n[1]*h,13*devicePixelRatio,0,7);x.fill();
+    x.fillStyle="#0b0f2e";x.font=`800 ${14*devicePixelRatio}px Unbounded, sans-serif`;x.textAlign="center";x.textBaseline="middle";x.fillText(String(p.id+1),n[0]*w,n[1]*h+1);
+  });
+}
+
+/* ================== ДЕМО: клавиши вместо камеры ================== */
+const DEMO_KEYS={q:[0,"L"],w:[0,"R"],o:[1,"L"],p:[1,"R"],z:[2,"L"],x:[2,"R"]};
+const held={};
+addEventListener("keydown",e=>{const k=e.key.toLowerCase();if(DEMO_KEYS[k]&&mode==="demo")held[k]=true;if(k==="f"&&!e.repeat)toggleFs();});
+addEventListener("keyup",e=>{delete held[e.key.toLowerCase()];});
+function demoTick(){players.forEach((p,i)=>{p.present=i<3;p.raise=null;});for(const k in held){const [pi,s]=DEMO_KEYS[k];players[pi].raise=s;}}
+
+/* ================== ИГРОВОЙ ЦИКЛ ================== */
+let round=0,cur=null,roundStart=0,revealed=false,loopOn=false;
+function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("on",s.id===id));}
+function toast(txt,col){const el=document.getElementById("toast");el.textContent=txt;el.style.color=col||"var(--ink)";el.classList.add("on");setTimeout(()=>el.classList.remove("on"),900);}
+function nextRound(){
+  round++;if(round>ROUNDS){finish();return;}
+  cur=makeQuestion(round-1);revealed=false;roundStart=performance.now();
+  players.forEach(p=>{p.answered=false;p.answerSide=null;p.holdSide=null;p.holdStart=0;});
+  document.getElementById("roundLbl").textContent=`${t("round")} ${round} ${t("of")} ${ROUNDS}`;
+  document.getElementById("qText").textContent=cur.q;document.getElementById("qSub").textContent=cur.sub;
+  ["L","R"].forEach(s=>{const v=document.getElementById("val"+s);v.textContent=cur[s];v.classList.toggle("sm",cur.small||String(cur[s]).length>6);
+    document.getElementById("card"+s).classList.remove("ok","no");document.getElementById("who"+s).innerHTML="";});
+  renderPlayers();
+}
+function reveal(){
+  revealed=true;const ok=cur.side;
+  document.getElementById("card"+ok).classList.add("ok");document.getElementById("card"+(ok==="L"?"R":"L")).classList.add("no");
+  let any=false;
+  players.forEach(p=>{if(p.answered&&p.answerSide===ok){const sp=Math.max(0,1-(p.answerAt-roundStart)/ROUND_MS);p.score+=100+Math.round(50*sp);any=true;}});
+  toast(any?t("correct"):t("time"),any?"var(--good)":"var(--gold)");renderPlayers();setTimeout(nextRound,2600);
+}
+let presSig="";
+function frame(now){
+  if(!loopOn)return;
+  if(mode==="demo")demoTick();
+  else if(now-lastData>STALE_MS)players.forEach(p=>{p.present=false;p.raise=null;});
+  if(cur&&!revealed){
+    const el=Math.min(ROUND_MS,now-roundStart);
+    document.getElementById("tf").style.strokeDashoffset=String(263.9*(el/ROUND_MS));
+    document.getElementById("tLbl").textContent=Math.ceil((ROUND_MS-el)/1000);
+    players.forEach(p=>{
+      const ring=document.getElementById("ring"+p.id);
+      if(p.answered||!p.present){if(ring)ring.style.width=p.answered?"100%":"0";return;}
+      if(p.raise){
+        if(p.holdSide!==p.raise){p.holdSide=p.raise;p.holdStart=now;}
+        const prog=Math.min(1,(now-p.holdStart)/HOLD_MS);if(ring)ring.style.width=(prog*100)+"%";
+        if(prog>=1){p.answered=true;p.answerSide=p.raise;p.answerAt=now;
+          document.getElementById("who"+p.raise).insertAdjacentHTML("beforeend",`<span class="dot" style="background:${COLORS[p.id]}">${p.id+1}</span>`);renderPlayers();}
+      }else{p.holdSide=null;if(ring)ring.style.width="0";}
+    });
+    const active=players.filter(p=>p.present);
+    if(el>=ROUND_MS||(active.length&&active.every(p=>p.answered)))reveal();
+  }
+  const sig=players.map(p=>p.present?1:0).join("");if(sig!==presSig){presSig=sig;renderPlayers();}
+  requestAnimationFrame(frame);
+}
+function finish(){
+  loopOn=false;
+  const top=players.filter(p=>p.score>0||p.present).sort((a,b)=>b.score-a.score).slice(0,3);
+  const order=[1,0,2].filter(i=>top[i]);const hs=[100,70,55];
+  document.getElementById("podium").innerHTML=order.map(i=>{const p=top[i];return `<div class="pod" style="height:${hs[i]*0.38}vh;border-top:6px solid ${COLORS[p.id]}"><span class="dot" style="background:${COLORS[p.id]}">${p.id+1}</span><b>${p.score}</b><span>${t("player")} ${p.id+1}</span></div>`;}).join("");
+  show("results");
+}
+function begin(m){
+  mode=m;players.forEach(p=>{p.score=0;});round=0;presSig="";
+  document.getElementById("skBox").style.display=m==="demo"?"none":"";
+  document.getElementById("keysHint").textContent=m==="demo"?t("keys"):"";
+  show("game");loopOn=true;nextRound();requestAnimationFrame(frame);
+}
+function toggleFs(){const d=document.documentElement;(document.fullscreenElement?document.exitFullscreen():d.requestFullscreen?.())?.catch?.(()=>{});}
+
+/* ================== КНОПКИ ================== */
+document.querySelectorAll("[data-lang]").forEach(b=>b.onclick=()=>{L=b.dataset.lang;applyLang();});
+document.getElementById("startBtn").onclick=()=>begin("phone");
+document.getElementById("startDemo").onclick=()=>begin("demo");
+document.getElementById("again").onclick=()=>begin(mode);
+document.getElementById("toMenu").onclick=()=>{mode="phone";show("start");};
+document.getElementById("fsBtn").onclick=toggleFs;
+resetPlayers();openRoom();applyLang();
+</script>
+</body>
+</html>
