@@ -188,16 +188,16 @@ const WORDS=[["🍎","алма"],["🍐","алмұрт"],["🐱","мысық"],[
 const COUNT_ITEMS=["🍎","⭐","🎈","🐟","🚗"];
 
 /* дополнительные тексты экрана */
-Object.assign(T.ru,{h1:"2. Встаньте перед камерой",h2:"3. Поднимите руку",s1:"1. Подключите телефон",s1t:"Отсканируйте QR-код или откройте ссылку на телефоне и введите код. Поставьте телефон у телевизора камерой к игрокам.",
+Object.assign(T.ru,{saved:"сохранён",h1:"2. Сохраните игроков",h1t:"Каждый по очереди поднимает обе руки на секунду — камера запомнит его под номером и цветом. Кто не сохранился, тот зритель.",h2:"3. Отвечайте одной рукой",h2t:"Ответ слева — левая рука, справа — правая. Держите, пока не прозвучит сигнал. Когда бежите или прыгаете, отсчёт ставится на паузу.",s1:"1. Подключите телефон",s1t:"Отсканируйте QR-код или откройте ссылку на телефоне и введите код. Поставьте телефон у телевизора камерой к игрокам.",
   roomLbl:"Код комнаты",startCam:"Начать игру",waitPhone:"Ждём телефон-камеру…",phoneOk:"Телефон подключён",phoneLost:"Телефон отключился",noNet:"Нет связи с сервером комнат — проверьте интернет",camOn:"движения с телефона",
   keys:"Демо: игрок 1 — Q / W · игрок 2 — O / P · игрок 3 — Z / X (левая / правая рука)"});
-Object.assign(T.kz,{h1:"2. Камераның алдына тұрыңыз",h2:"3. Қолыңызды көтеріңіз",s1:"1. Телефонды қосыңыз",s1t:"QR-кодты сканерлеңіз немесе сілтемені телефонда ашып, кодты енгізіңіз. Телефонды теледидардың жанына камерасын ойыншыларға қаратып қойыңыз.",
+Object.assign(T.kz,{saved:"сақталды",h1:"2. Ойыншыларды сақтаңыз",h1t:"Әркім кезекпен екі қолын бір секундқа көтереді — камера оны нөмірі мен түсі бойынша есте сақтайды. Сақталмаған адам — көрермен.",h2:"3. Бір қолмен жауап беріңіз",h2t:"Жауап сол жақта — сол қол, оң жақта — оң қол. Дыбыс шыққанша ұстаңыз. Жүгіргенде немесе секіргенде санау кідіртіледі.",s1:"1. Телефонды қосыңыз",s1t:"QR-кодты сканерлеңіз немесе сілтемені телефонда ашып, кодты енгізіңіз. Телефонды теледидардың жанына камерасын ойыншыларға қаратып қойыңыз.",
   roomLbl:"Бөлме коды",startCam:"Ойынды бастау",waitPhone:"Телефон-камераны күтудеміз…",phoneOk:"Телефон қосылды",phoneLost:"Телефон ажырады",noNet:"Бөлмелер серверімен байланыс жоқ — интернетті тексеріңіз",camOn:"телефоннан қозғалыс",
   keys:"Демо: 1-ойыншы — Q / W · 2-ойыншы — O / P · 3-ойыншы — Z / X (сол / оң қол)"});
 let L="ru"; const t=k=>T[L][k];
 function applyLang(){document.documentElement.lang=L==="kz"?"kk":"ru";document.querySelectorAll("[data-t]").forEach(e=>{e.textContent=t(e.dataset.t);});
   document.querySelectorAll("[data-lang]").forEach(b=>b.classList.toggle("on",b.dataset.lang===L));
-  updateConn();renderQr();if(conn&&conn.open)conn.send({t:"lang",lang:L});}
+  updateConn();renderQr();broadcast({t:"lang",lang:L});}
 
 /* ================== ВОПРОСЫ ================== */
 const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
@@ -229,7 +229,7 @@ const COLORS=["var(--p1)","var(--p2)","var(--p3)","var(--p4)"];
 const HEX=["#ff7a59","#53b4ff","#b98cff","#2ee59d"];
 const MAXP=4, HOLD_MS=900, ROUND_MS=10000, ROUNDS=10, STALE_MS=1500;
 let players=[];
-function resetPlayers(){players=[0,1,2,3].map(i=>({id:i,score:0,present:false,raise:null,pts:null,lastSeen:0,holdSide:null,holdStart:0,answered:false,answerSide:null,answerAt:0}));}
+function resetPlayers(){players=[0,1,2,3].map(i=>({id:i,score:0,present:false,raise:null,moving:false,pts:null,lastSeen:0,holdSide:null,holdStart:0,answered:false,answerSide:null,answerAt:0}));}
 function renderPlayers(){
   document.getElementById("players").innerHTML=players.map(p=>`<div class="pl ${p.present?"":"off"}" style="border-color:${p.present?COLORS[p.id]:"transparent"}">
     <div class="nm"><span class="dot" style="background:${COLORS[p.id]}">${p.id+1}</span>${t("player")} ${p.id+1}</div>
@@ -241,19 +241,23 @@ function renderLobby(){
   document.getElementById("lobbyChips").innerHTML=players.filter(p=>p.present).map(p=>`<span class="dot" style="background:${COLORS[p.id]};width:40px;height:40px">${p.id+1}</span>`).join("");
 }
 
-/* ================== КОМНАТА: связь с телефоном ================== */
-let mode="phone", peer=null, conn=null, code="", lastData=0;
+/* ================== КОМНАТА: связь с телефонами ==================
+   Подключиться могут несколько телефонов: одна общая камера у телевизора или у каждого игрока свой телефон. */
+let mode="phone", peer=null, code="", lastData=0;
+const conns=new Map(); // conn → {last, ps, mode}
 function camUrl(){return new URL("cam.html",location.href).href.split("?")[0]+"?room="+code+"&lang="+L;}
 function renderQr(){
   const box=document.getElementById("qr");if(!code||!window.QRCode){box.textContent="";return;}
   box.innerHTML="";new QRCode(box,{text:camUrl(),width:220,height:220,correctLevel:QRCode.CorrectLevel.M});
   document.getElementById("camLink").textContent=camUrl();
 }
+const openConns=()=>[...conns.keys()].filter(c=>c.open);
+function broadcast(m){openConns().forEach(c=>{try{c.send(m);}catch(e){}});}
 function updateConn(){
-  const ok=conn&&conn.open;const el=document.getElementById("conn");if(!el)return;
-  el.classList.toggle("ok",!!ok);
-  document.getElementById("connTxt").textContent=peer&&peer.disconnected&&!ok?t("noNet"):ok?t("phoneOk"):(conn?t("phoneLost"):t("waitPhone"));
-  document.getElementById("startBtn").disabled=!ok;
+  const n=openConns().length;const el=document.getElementById("conn");if(!el)return;
+  el.classList.toggle("ok",n>0);
+  document.getElementById("connTxt").textContent=peer&&peer.disconnected&&!n?t("noNet"):n?(t("phoneOk")+(n>1?` · ${n}`:"")):(conns.size?t("phoneLost"):t("waitPhone"));
+  document.getElementById("startBtn").disabled=!n;
 }
 function openRoom(){
   if(!window.Peer){document.getElementById("connTxt").textContent=t("noNet");return;}
@@ -262,23 +266,35 @@ function openRoom(){
   peer.on("error",e=>{if(e.type==="unavailable-id"){peer.destroy();openRoom();}else updateConn();});
   peer.on("disconnected",()=>{updateConn();try{peer.reconnect();}catch(e){}});
   peer.on("connection",c=>{
-    if(conn&&conn!==c)try{conn.close();}catch(e){}
-    conn=c;
-    c.on("open",()=>{updateConn();c.send({t:"lang",lang:L});});
-    c.on("data",onData);
-    c.on("close",()=>{if(conn===c)updateConn();});
+    conns.set(c,{last:0,ps:[],mode:"shared"});
+    c.on("open",()=>{updateConn();c.send({t:"lang",lang:L});c.send({t:"phase",phase:curPhase()});});
+    c.on("data",m=>onData(c,m));
+    c.on("close",()=>{conns.delete(c);updateConn();});
   });
   updateConn();
 }
-function onData(m){
-  if(!m||m.t!=="p"||mode!=="phone")return;
-  const now=performance.now();lastData=now;
-  const seen=new Set();
-  (m.ps||[]).forEach(d=>{const p=players[d.id-1];if(!p)return;seen.add(p.id);p.present=true;p.lastSeen=now;p.raise=d.r||null;p.pts=d.k;});
-  players.forEach(p=>{if(!seen.has(p.id)){p.raise=null;if(now-p.lastSeen>STALE_MS)p.present=false;}});
-  drawSkeletons();
-  if(document.getElementById("start").classList.contains("on"))renderLobby();
+function curPhase(){return document.getElementById("game").classList.contains("on")?"game":document.getElementById("results").classList.contains("on")?"results":"lobby";}
+function onData(c,m){
+  if(!m)return;const st=conns.get(c);if(!st)return;
+  if(m.t==="hello"){st.mode=m.mode;return;}
+  if(m.t!=="p"||mode!=="phone")return;
+  const now=performance.now();lastData=now;st.last=now;st.ps=m.ps||[];st.mode=m.mode||st.mode;
+  (m.ev||[]).forEach(e=>{if(e.t==="reset"&&curPhase()==="lobby"){players.forEach(p=>{p.present=false;p.lastSeen=0;});renderLobby();}if(e.t==="reg"){toast(`${t("player")} ${e.id} ${t("saved")}`,HEX[e.id-1]);beep(660);}});
+  mergePlayers(now);drawSkeletons();
+  if(curPhase()==="lobby")renderLobby();
 }
+/* сводим данные всех телефонов: личный телефон игрока важнее общей камеры */
+function mergePlayers(now){
+  const best={};
+  for(const [c,st] of conns){if(now-st.last>STALE_MS)continue;
+    st.ps.forEach(d=>{const cur=best[d.id];if(!cur||(st.mode==="personal"&&cur.mode!=="personal"))best[d.id]={...d,mode:st.mode};});}
+  players.forEach(p=>{const d=best[p.id+1];
+    if(d){p.present=true;p.lastSeen=now;p.raise=d.b?null:(d.r||null);p.moving=!!d.m;p.pts=d.k;}
+    else{p.raise=null;p.moving=false;if(now-p.lastSeen>STALE_MS)p.present=false;}});
+}
+/* короткий звук: ответ засчитан / игрок сохранён */
+let actx=null;
+function beep(f){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f||880;o.connect(g);g.connect(actx.destination);g.gain.setValueAtTime(.18,actx.currentTime);g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+.25);o.start();o.stop(actx.currentTime+.26);}catch(e){}}
 /* ключевые точки приходят в порядке: нос, плечи, локти, запястья, бёдра, колени, щиколотки */
 const SK=[[1,2],[1,3],[3,5],[2,4],[4,6],[1,7],[2,8],[7,8],[7,9],[9,11],[8,10],[10,12]];
 function drawSkeletons(){
@@ -302,7 +318,7 @@ function demoTick(){players.forEach((p,i)=>{p.present=i<3;p.raise=null;});for(co
 
 /* ================== ИГРОВОЙ ЦИКЛ ================== */
 let round=0,cur=null,roundStart=0,revealed=false,loopOn=false;
-function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("on",s.id===id));}
+function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("on",s.id===id));if(typeof broadcast==="function")broadcast({t:"phase",phase:curPhase()});}
 function toast(txt,col){const el=document.getElementById("toast");el.textContent=txt;el.style.color=col||"var(--ink)";el.classList.add("on");setTimeout(()=>el.classList.remove("on"),900);}
 function nextRound(){
   round++;if(round>ROUNDS){finish();return;}
@@ -325,7 +341,7 @@ let presSig="";
 function frame(now){
   if(!loopOn)return;
   if(mode==="demo")demoTick();
-  else if(now-lastData>STALE_MS)players.forEach(p=>{p.present=false;p.raise=null;});
+  else mergePlayers(now);
   if(cur&&!revealed){
     const el=Math.min(ROUND_MS,now-roundStart);
     document.getElementById("tf").style.strokeDashoffset=String(263.9*(el/ROUND_MS));
@@ -335,16 +351,17 @@ function frame(now){
       if(p.answered||!p.present){if(ring)ring.style.width=p.answered?"100%":"0";return;}
       if(p.raise){
         if(p.holdSide!==p.raise){p.holdSide=p.raise;p.holdStart=now;}
+        else if(p.moving)p.holdStart+=now-(frame.prev||now);   // быстро двигается — отсчёт на паузе, не сбрасывается
         const prog=Math.min(1,(now-p.holdStart)/HOLD_MS);if(ring)ring.style.width=(prog*100)+"%";
         if(prog>=1){p.answered=true;p.answerSide=p.raise;p.answerAt=now;
-          document.getElementById("who"+p.raise).insertAdjacentHTML("beforeend",`<span class="dot" style="background:${COLORS[p.id]}">${p.id+1}</span>`);renderPlayers();}
+          document.getElementById("who"+p.raise).insertAdjacentHTML("beforeend",`<span class="dot" style="background:${COLORS[p.id]}">${p.id+1}</span>`);renderPlayers();beep(880);}
       }else{p.holdSide=null;if(ring)ring.style.width="0";}
     });
     const active=players.filter(p=>p.present);
     if(el>=ROUND_MS||(active.length&&active.every(p=>p.answered)))reveal();
   }
   const sig=players.map(p=>p.present?1:0).join("");if(sig!==presSig){presSig=sig;renderPlayers();}
-  requestAnimationFrame(frame);
+  frame.prev=now;requestAnimationFrame(frame);
 }
 function finish(){
   loopOn=false;
