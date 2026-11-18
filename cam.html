@@ -135,16 +135,24 @@ function torsoLen(lm){
   if(vis(lm[23])&&vis(lm[24])){const mh={x:(lm[23].x+lm[24].x)/2,y:(lm[23].y+lm[24].y)/2};return Math.max(.04,Math.hypot(ms.x-mh.x,ms.y-mh.y));}
   return Math.max(.04,Math.abs(lm[11].x-lm[12].x)*1.4);
 }
-/* насколько поднята рука: кисть выше плеча в долях туловища; рука должна быть вытянута вверх, локоть выше плеча */
-function armLift(lm,side,tl){
-  const sh=lm[side==="L"?11:12],el=lm[side==="L"?13:14],wr=lm[side==="L"?15:16];
-  if(!vis(sh)||!vis(wr))return 0;
-  const lift=(sh.y-wr.y)/tl;
-  const elbowUp=vis(el)?(sh.y-el.y)/tl>-.05:true;
-  const upright=Math.abs(wr.x-sh.x)/tl<1.1;
-  return (elbowUp&&upright)?lift:Math.min(lift,0);
+/* Насколько поднята рука с каждой СТОРОНЫ экрана.
+   Не доверяем подписям модели «левое/правое запястье» — на расстоянии она их путает.
+   Берём оба запястья, смотрим, какое поднято, и определяем сторону по тому, где оно относительно середины тела.
+   На экране картинка зеркальная (как в зеркале): левая рука человека — слева. В исходном кадре это x больше середины. */
+function sideLifts(lm,tl){
+  const cx=(lm[11].x+lm[12].x)/2, shY=(lm[11].y+lm[12].y)/2;
+  const out={L:0,R:0};
+  [[13,15],[14,16]].forEach(([e,w])=>{
+    const wr=lm[w],el=lm[e];if(!vis(wr))return;
+    const lift=(shY-wr.y)/tl;
+    const elbowUp=vis(el)?(shY-el.y)/tl>-.05:true;
+    const upright=Math.abs(wr.x-cx)/tl<1.4;
+    const val=(elbowUp&&upright)?lift:Math.min(lift,0);
+    const side=wr.x>cx?"L":"R";
+    if(val>out[side])out[side]=val;
+  });
+  return out;
 }
-
 /* ================== ИГРОКИ ================== */
 let profiles=[];   // сохранённые игроки: {id,hist,x,y,tl,vx,vy,last,lm,hyst:{L,R},raise,moving,both}
 let guests=[];     // люди в кадре, которые ещё не игроки: {x,y,tl,hist,bothSince,last,lm}
@@ -187,7 +195,8 @@ function updateProfile(p,d,now){
   p.lm=p.lm&&p.lm.length===d.lm.length?d.lm.map((q,i)=>({x:p.lm[i].x*.4+q.x*.6,y:p.lm[i].y*.4+q.y*.6,visibility:q.visibility})):d.lm;
   const tl=torsoLen(p.lm);
   p.moving=Math.hypot(p.vx,p.vy)/Math.max(tl,.04)>MOVE_FAST;
-  for(const s of["L","R"]){const lift=armLift(p.lm,s,tl);if(!p.hyst[s]&&lift>RAISE_ON)p.hyst[s]=true;else if(p.hyst[s]&&lift<RAISE_OFF)p.hyst[s]=false;}
+  const lifts=sideLifts(p.lm,tl);
+  for(const s of["L","R"]){const lift=lifts[s];if(!p.hyst[s]&&lift>RAISE_ON)p.hyst[s]=true;else if(p.hyst[s]&&lift<RAISE_OFF)p.hyst[s]=false;}
   p.both=p.hyst.L&&p.hyst.R;
   p.raise=p.both?null:p.hyst.L?"L":p.hyst.R?"R":null;
 }
@@ -196,7 +205,7 @@ function updateGuests(unmatched,now){
   unmatched.forEach(d=>{
     let g=null,bd=1e9;guests.forEach(x=>{const dd=Math.hypot(d.x-x.x,d.y-x.y)/Math.max(x.tl,.05);if(dd<bd&&dd<1.5){bd=dd;g=x;}});
     if(!g)g={bothSince:0,hist:null};
-    const tl=torsoLen(d.lm),both=armLift(d.lm,"L",tl)>RAISE_ON&&armLift(d.lm,"R",tl)>RAISE_ON;
+    const tl=torsoLen(d.lm),lf=sideLifts(d.lm,tl),both=lf.L>RAISE_ON&&lf.R>RAISE_ON;
     g.x=d.x;g.y=d.y;g.tl=d.tl;g.lm=d.lm;g.last=now;g.det=d;
     if(d.hist)g.hist=g.hist?mixHist(g.hist,d.hist,.3):d.hist.slice();
     g.bothSince=both?(g.bothSince||now):0;g.prog=both?Math.min(1,(now-g.bothSince)/REG_HOLD_MS):0;
@@ -264,19 +273,23 @@ function loop(){
   }
   requestAnimationFrame(loop);
 }
-function drawBody(lm,col,label,prog){
+function drawBody(lm,col,label,prog,raise){
   const w=canvas.width,h=canvas.height;
   ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=5*devicePixelRatio;ctx.lineCap="round";
   BONES.forEach(([a,b])=>{const A=lm[a],B=lm[b];ctx.beginPath();ctx.moveTo(A.x*w,A.y*h);ctx.lineTo(B.x*w,B.y*h);ctx.stroke();});
   const n=lm[0];ctx.beginPath();ctx.arc(n.x*w,n.y*h,22*devicePixelRatio,0,7);ctx.fill();
   if(prog>0){ctx.strokeStyle="#ffd84d";ctx.lineWidth=6*devicePixelRatio;ctx.beginPath();ctx.arc(n.x*w,n.y*h,32*devicePixelRatio,-Math.PI/2,-Math.PI/2+prog*2*Math.PI);ctx.stroke();}
   ctx.save();ctx.translate(n.x*w,n.y*h);ctx.scale(-1,1);ctx.fillStyle="#0b0f2e";ctx.font=`800 ${22*devicePixelRatio}px Unbounded, sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(label,0,1);ctx.restore();
+  if(raise){ // подсказка: какую сторону камера видит прямо сейчас (рисуем в зеркальных координатах)
+    ctx.save();ctx.translate(n.x*w,n.y*h-60*devicePixelRatio);ctx.scale(-1,1);
+    ctx.fillStyle="#ffd84d";ctx.font=`800 ${34*devicePixelRatio}px Unbounded, sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(raise==="L"?"←":"→",0,0);ctx.restore();}
 }
 function draw(){
   canvas.width=canvas.clientWidth*devicePixelRatio;canvas.height=canvas.clientHeight*devicePixelRatio;ctx.clearRect(0,0,canvas.width,canvas.height);
   const now=performance.now();
   guests.forEach(g=>drawBody(g.lm,GREY,"?",g.prog||0));
-  profiles.filter(p=>now-p.last<400).forEach(p=>drawBody(p.lm,COLORS[p.id-1],String(p.id),0));
+  profiles.filter(p=>now-p.last<400).forEach(p=>drawBody(p.lm,COLORS[p.id-1],String(p.id),0,p.raise));
 }
 let lastSig="";
 function renderPlayers(){

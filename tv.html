@@ -234,7 +234,7 @@ function renderPlayers(){
   document.getElementById("players").innerHTML=players.map(p=>`<div class="pl ${p.present?"":"off"}" style="border-color:${p.present?COLORS[p.id]:"transparent"}">
     <div class="nm"><span class="dot" style="background:${COLORS[p.id]}">${p.id+1}</span>${t("player")} ${p.id+1}</div>
     <div class="sc">${p.score}</div>
-    <div class="st">${!p.present?t("waiting"):p.answered?t("answered"):t("thinking")}</div>
+    <div class="st" id="st${p.id}">${!p.present?t("waiting"):p.answered?t("answered"):t("thinking")}</div>
     <div class="ring"><i id="ring${p.id}"></i></div></div>`).join("");
 }
 function renderLobby(){
@@ -349,6 +349,8 @@ function frame(now){
     players.forEach(p=>{
       const ring=document.getElementById("ring"+p.id);
       if(p.answered||!p.present){if(ring)ring.style.width=p.answered?"100%":"0";return;}
+      const stEl=document.getElementById("st"+p.id);
+      if(stEl&&!p.answered)stEl.textContent=p.raise?(p.raise==="L"?"← "+t("leftHand"):t("rightHand")+" →")+(p.moving?" · …":""):t("thinking");
       if(p.raise){
         if(p.holdSide!==p.raise){p.holdSide=p.raise;p.holdStart=now;}
         else if(p.moving)p.holdStart+=now-(frame.prev||now);   // быстро двигается — отсчёт на паузе, не сбрасывается
